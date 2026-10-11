@@ -58,7 +58,7 @@ public class SplitBillServiceImpl implements SplitBillService {
     }
 
     @Override
-    public Expense addExpense(String groupId, AddExpenseRequest req) {
+    public Group addExpense(String groupId, AddExpenseRequest req) {
         Group group = findGroup(groupId);
 
         if (req == null || req.getDescription() == null || req.getDescription().isBlank()) {
@@ -97,7 +97,8 @@ public class SplitBillServiceImpl implements SplitBillService {
         group.getExpenses().add(expense);
         repo.save(group);
 
-        return expense;
+        Group updatedGroupDetails = findGroup(groupId);
+        return updatedGroupDetails;
 
     }
 

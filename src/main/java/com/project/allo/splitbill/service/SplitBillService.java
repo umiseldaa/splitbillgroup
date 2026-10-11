@@ -8,6 +8,6 @@ import com.project.allo.splitbill.model.Group;
 public interface SplitBillService {
     
     Group createGroup(CreateGroupRequest req);
-    Expense addExpense(String groupId, AddExpenseRequest req);
+    Group addExpense(String groupId, AddExpenseRequest req);
     
 }

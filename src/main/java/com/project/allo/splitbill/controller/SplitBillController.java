@@ -3,6 +3,7 @@ package com.project.allo.splitbill.controller;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -32,7 +33,8 @@ import com.project.allo.splitbill.service.SplitBillService;
 @RequiredArgsConstructor 
 public class SplitBillController {
 
-    private final SplitBillService service;
+    @Autowired 
+    private SplitBillService service;
 
     @GetMapping("")
     public String getMethodName() {
