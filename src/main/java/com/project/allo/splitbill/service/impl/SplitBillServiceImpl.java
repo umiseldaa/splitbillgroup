@@ -5,6 +5,7 @@ import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -13,12 +14,16 @@ import org.springframework.stereotype.Service;
 
 import com.project.allo.splitbill.dto.AddExpenseRequest;
 import com.project.allo.splitbill.dto.CreateGroupRequest;
+import com.project.allo.splitbill.dto.SettlementResponse;
 import com.project.allo.splitbill.exception.BadRequestException;
 import com.project.allo.splitbill.exception.NotFoundException;
 import com.project.allo.splitbill.model.Expense;
 import com.project.allo.splitbill.model.Group;
+import com.project.allo.splitbill.model.settlement.Transfer;
 import com.project.allo.splitbill.repository.SplitBillRepository;
 import com.project.allo.splitbill.service.SplitBillService;
+import com.project.allo.splitbill.utils.calculator.ServiceChargeCalculator;
+import com.project.allo.splitbill.utils.calculator.SettlementCalculator;
 
 import lombok.RequiredArgsConstructor;
 
@@ -26,8 +31,14 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class SplitBillServiceImpl implements SplitBillService {
 
-    @Autowired 
+    @Autowired
     private SplitBillRepository repo;
+
+    @Autowired
+    private SettlementCalculator settlementCalculator;
+
+    @Autowired
+    private ServiceChargeCalculator serviceChargeCalculator;
 
     @Override
     public Group createGroup(CreateGroupRequest req) {
@@ -67,7 +78,7 @@ public class SplitBillServiceImpl implements SplitBillService {
         if (req.getPaidBy() == null || !group.getParticipants().contains(req.getPaidBy().trim())) {
             throw new BadRequestException("paid_by must be a participant of this group");
         }
-        
+
         BigDecimal amount = req.getAmount();
         if (amount == null || amount.signum() <= 0) {
             throw new BadRequestException("amount must be greater than 0");
@@ -75,7 +86,7 @@ public class SplitBillServiceImpl implements SplitBillService {
         if (amount.stripTrailingZeros().scale() > 2) {
             throw new BadRequestException("amount must have at most 2 decimal places");
         }
-        
+
         List<String> participants = req.getParticipants();
         if (participants == null || participants.isEmpty()) {
             throw new BadRequestException("participants is required");
@@ -85,21 +96,50 @@ public class SplitBillServiceImpl implements SplitBillService {
         if (uniqueParticipants.size() < participants.size()) {
             throw new BadRequestException("participants must not contain duplicates");
         }
-        for(String name: participants) {
-            if(!group.getParticipants().contains(name)) {
-                throw new BadRequestException("'"+name+"' is not a participant of this group");
+        for (String name : participants) {
+            if (!group.getParticipants().contains(name)) {
+                throw new BadRequestException("'" + name + "' is not a participant of this group");
             }
         }
 
         Expense expense = new Expense(UUID.randomUUID().toString(), req.getDescription().trim(), req.getPaidBy().trim(),
                 amount.setScale(2, RoundingMode.UNNECESSARY), participants);
-        
+
         group.getExpenses().add(expense);
         repo.save(group);
 
         Group updatedGroupDetails = findGroup(groupId);
         return updatedGroupDetails;
 
+    }
+
+    @Override
+    public SettlementResponse getSettlement(String groupId) {
+        Group group = findGroup(groupId);
+
+        // minta calculator ngitung saldo dan siapa bayar ke siapa
+        Map<String, Object> result = settlementCalculator.settle(group.getParticipants(), group.getExpenses());
+        Map<String, BigDecimal> balances = (Map<String, BigDecimal>) result.get("balances");
+        List<Transfer> transfers = (List<Transfer>) result.get("transfers");
+
+        // total semua expense
+        BigDecimal total = BigDecimal.ZERO.setScale(2);
+        for (int i = 0; i < group.getExpenses().size(); i++) {
+            total = total.add(group.getExpenses().get(i).getAmount());
+        }
+
+        // service charge: percentage count from username git, nominal from total
+        int pct = serviceChargeCalculator.calcServiceChargePct();
+
+        SettlementResponse response = new SettlementResponse();
+        response.setGroupId(group.getId());
+        response.setGroupName(group.getName());
+        response.setTotalExpenses(total);
+        response.setServiceChargePct(pct);
+        response.setServiceChargeAmount(serviceChargeCalculator.calcServiceChargeAmount(total, pct));
+        response.setBalances(balances);
+        response.setSettlements(transfers);
+        return response;
     }
 
     private Group findGroup(String groupId) {

@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import com.project.allo.splitbill.dto.AddExpenseRequest;
 import com.project.allo.splitbill.exception.BadRequestException;
+import com.project.allo.splitbill.exception.NotFoundException;
 import com.project.allo.splitbill.service.SplitBillService;
 
 
@@ -67,6 +68,19 @@ public class SplitBillController {
         } catch (Exception e) {
             log.error("[Add Expense] Error: ", e);
             return failure(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to add expense");
+        }
+    }
+
+    @GetMapping("/{groupId}/settlement")
+    public ResponseEntity<Map<String, Object>> getSettlement(@PathVariable String groupId) {
+        try {
+            return success(HttpStatus.OK, service.getSettlement(groupId));
+        } catch (NotFoundException e) {
+            log.warn("[Get Settlement] Failed: ", e);
+            return failure(HttpStatus.NOT_FOUND, e.getMessage());
+        } catch (Exception e) {
+            log.error("[Get Settlement] Error: ", e);
+            return failure(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to get settlement");
         }
     }
     
